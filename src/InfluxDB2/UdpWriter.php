@@ -30,6 +30,11 @@ class UdpWriter implements Writer
     public $options = [];
 
     /**
+     * @var string
+     */
+    protected $lastPayload;
+
+    /**
      * UdpWriter constructor.
      * @param array $options
      * @throws \Exception
@@ -60,15 +65,35 @@ class UdpWriter implements Writer
         if (is_array($data)) {
             $payload = Point::fromArray($data)->toLineProtocol();
         }
-        if (empty($data)) {
+        if (empty($payload)) {
             throw new \InvalidArgumentException("Data passed in unknown format");
         }
-        $bytesSend = false;
-        if ($socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP)) {
-            $bytesSend = socket_sendto($socket, $payload, strlen($payload), 0, $this->options['udpHost'], $this->options['udpPort']);
-        }
-        if ($bytesSend === false) {
+        $this->lastPayload = $payload;
+        $bytesSent = $this->writeSocket($payload);
+        if ($bytesSent === false) {
             throw new \Exception('Unable to write data');
         }
+    }
+
+    /**
+     * @param string $payload
+     * @return false|int
+     * @throws \Exception
+     */
+    protected function writeSocket($payload)
+    {
+        $bytesSent = false;
+        if ($socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP)) {
+            $bytesSent = socket_sendto($socket, $payload, strlen($payload), 0, $this->options['udpHost'], $this->options['udpPort']);
+        }
+        return $bytesSent;
+    }
+
+    /**
+     * @return string
+     */
+    public function getLastPayload(): string
+    {
+        return $this->lastPayload;
     }
 }
