@@ -30,9 +30,9 @@ class UdpWriter implements Writer
     public $options = [];
 
     /**
-     * @var string
+     * @var resource
      */
-    protected $lastPayload;
+    protected $socket;
 
     /**
      * UdpWriter constructor.
@@ -53,7 +53,7 @@ class UdpWriter implements Writer
     /**
      * @inheritDoc
      */
-    public function write($data, string $precision = null, string $bucket = null, string $org = null)
+    public function write($data)
     {
         $payload = null;
         if (is_string($data)) {
@@ -63,12 +63,19 @@ class UdpWriter implements Writer
             $payload = $data->toLineProtocol();
         }
         if (is_array($data)) {
+            if (!array_key_exists('name', $data)) {
+                foreach ($data as $item) {
+                    if (isset($item)) {
+                        $this->write($item);
+                    }
+                }
+                return;
+            }
             $payload = Point::fromArray($data)->toLineProtocol();
         }
         if (empty($payload)) {
             throw new \InvalidArgumentException("Data passed in unknown format");
         }
-        $this->lastPayload = $payload;
         $bytesSent = $this->writeSocket($payload);
         if ($bytesSent === false) {
             throw new \Exception('Unable to write data');
@@ -83,17 +90,22 @@ class UdpWriter implements Writer
     protected function writeSocket($payload)
     {
         $bytesSent = false;
-        if ($socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP)) {
+        if ($socket = $this->getSocket()) {
             $bytesSent = socket_sendto($socket, $payload, strlen($payload), 0, $this->options['udpHost'], $this->options['udpPort']);
         }
         return $bytesSent;
     }
 
     /**
-     * @return string
+     * Create (if not exists) socket to write UDP datagrams
+     * @return false|resource
      */
-    public function getLastPayload(): string
+    protected function getSocket()
     {
-        return $this->lastPayload;
+        if (empty($this->socket)) {
+            $this->socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        }
+        return $this->socket;
     }
+
 }
